@@ -7,6 +7,7 @@ import requests
 import json
 import threading
 import queue
+import dns.resolver
 
 #############################################################
 #                 DEPENDENCY CHECKER + INSTALLER
@@ -27,7 +28,7 @@ TOOLS = {
     },
     "findomain": {
         "check": "findomain -h",
-        "install": "sudo apt install findomain -y"
+        "install": "sudo apt install finddomain -y"
     },
     "sublist3r": {
         "check": "sublist3r -h",
@@ -55,12 +56,14 @@ TOOLS = {
     }
 }
 
+
 def run(cmd):
     try:
         subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL)
         return True
     except:
         return False
+
 
 def install_tool(name, mode):
     tool = TOOLS[name]
@@ -77,9 +80,9 @@ def install_tool(name, mode):
         print(f"[!] WARNING: {name} not installed.")
         return
 
-    # ask user
+    # ask mode
     if mode == "ask":
-        ch = input(f"Install {name}? (y/n) : ")
+        ch = input(f"Install {name}? (y/n): ")
         if ch.lower() != "y":
             print(f"[!] Skipped installing {name}")
             return
@@ -88,6 +91,7 @@ def install_tool(name, mode):
     print(f"[+] Installing {name} ...")
     os.system(tool["install"])
     print(f"[✓] Done.")
+
 
 def dependency_manager(mode):
     print("\n============ DEPENDENCY CHECK ============")
@@ -102,8 +106,8 @@ def dependency_manager(mode):
 
 def run_out(cmd):
     try:
-        op = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL)
-        return op.splitlines()
+        output = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.DEVNULL)
+        return output.splitlines()
     except:
         return []
 
@@ -113,92 +117,158 @@ def banner(name):
 
 
 # ---- Passive Tools ----
-def subfinder(domain): banner("Subfinder"); return run_out(f"subfinder -silent -d {domain}")
-def assetfinder(domain): banner("Assetfinder"); return run_out(f"assetfinder --subs-only {domain}")
-def amass(domain): banner("Amass"); return run_out(f"amass enum -passive -d {domain}")
-def findomain(domain): banner("Findomain"); return run_out(f"findomain -t {domain} --quiet")
-def sublist3r(domain): banner("Sublist3r"); run_out(f"sublist3r -d {domain} -o sub_tmp.txt"); return run_out("cat sub_tmp.txt")
+
+def subfinder(domain):
+    banner("Subfinder")
+    return run_out(f"subfinder -silent -d {domain}")
+
+
+def assetfinder(domain):
+    banner("Assetfinder")
+    return run_out(f"assetfinder --subs-only {domain}")
+
+
+def amass(domain):
+    banner("Amass")
+    return run_out(f"amass enum -passive -d {domain}")
+
+
+def findomain(domain):
+    banner("Findomain")
+    return run_out(f"findomain -t {domain} --quiet")
+
+
+def sublist3r(domain):
+    banner("Sublist3r")
+    run_out(f"sublist3r -d {domain} -o sub_tmp.txt")
+    return run_out("cat sub_tmp.txt")
+
+
 def crtsh(domain):
     banner("crt.sh")
-    subs=set()
+    subs = set()
     try:
-        r=requests.get(f"https://crt.sh/?q=%25.{domain}&output=json",timeout=7)
-        for d in r.json(): subs.add(d["name_value"])
-    except: pass
+        r = requests.get(f"https://crt.sh/?q=%25.{domain}&output=json", timeout=7)
+        for d in r.json():
+            subs.add(d["name_value"])
+    except:
+        pass
     return list(subs)
+
+
 def wayback(domain):
     banner("Wayback")
     urls = run_out(f"waybackurls {domain}")
-    subs=[]
+    subs = []
     for u in urls:
         try:
-            host=u.split("/")[2]
-            if domain in host: subs.append(host)
-        except: pass
+            host = u.split("/")[2]
+            if domain in host:
+                subs.append(host)
+        except:
+            pass
     return subs
+
+
 def gau(domain):
     banner("GAU")
     urls = run_out(f"gau {domain}")
-    subs=[]
+    subs = []
     for u in urls:
         try:
-            host=u.split("/")[2]
-            if domain in host: subs.append(host)
-        except: pass
+            host = u.split("/")[2]
+            if domain in host:
+                subs.append(host)
+        except:
+            pass
     return subs
 
+
 # ---- API Tools ----
+
 def certspotter(domain):
     banner("CertSpotter")
-    subs=[]
+    subs = []
     try:
-        r=requests.get(f"https://api.certspotter.com/v1/issuances?domain={domain}&expand=dns_names")
-        for x in r.json(): subs.extend(x["dns_names"])
-    except: pass
+        r = requests.get(
+            f"https://api.certspotter.com/v1/issuances?domain={domain}&expand=dns_names"
+        )
+        for x in r.json():
+            subs.extend(x["dns_names"])
+    except:
+        pass
     return subs
+
 
 def virustotal(domain):
     banner("VirusTotal")
-    subs=[]
+    subs = []
     try:
-        r=requests.get(f"https://www.virustotal.com/api/v3/domains/{domain}/subdomains",
-                       headers={"x-apikey":"PUBLIC-API-NO-KEY"})
-        for x in r.json().get("data",[]): subs.append(x["id"])
-    except: pass
+        r = requests.get(
+            f"https://www.virustotal.com/api/v3/domains/{domain}/subdomains",
+            headers={"x-apikey": "PUBLIC-API-NO-KEY"}
+        )
+        for x in r.json().get("data", []):
+            subs.append(x["id"])
+    except:
+        pass
     return subs
 
-# ---- Brute Tools ----
-def dnsrecon(domain): banner("DNSRecon"); return run_out(f"dnsrecon -d {domain} -t brt | grep Name | awk '{{print $NF}}'")
-def dnsmap(domain): banner("DNSMap"); return run_out(f"dnsmap {domain}")
-def knockpy(domain): banner("Knockpy"); return run_out(f"knockpy {domain} --no-color | awk '{{print $1}}'")
 
-import dns.resolver
+# ---- Brute Force Tools ----
 
-def brute_thread(q,domain,out):
+def dnsrecon(domain):
+    banner("DNSRecon")
+    return run_out(f"dnsrecon -d {domain} -t brt | grep Name | awk '{{print $NF}}'")
+
+
+def dnsmap(domain):
+    banner("DNSMap")
+    return run_out(f"dnsmap {domain}")
+
+
+def knockpy(domain):
+    banner("Knockpy")
+    return run_out(f"knockpy {domain} --no-color | awk '{{print $1}}'")
+
+
+# Python DNS Brute Force
+def brute_thread(q, domain, out):
     while True:
         word = q.get()
-        if word is None: break
-        sub=f"{word}.{domain}"
+        if word is None:
+            break
+        sub = f"{word}.{domain}"
         try:
             dns.resolver.resolve(sub)
             out.append(sub)
-        except: pass
+        except:
+            pass
         q.task_done()
+
 
 def python_bruteforce(domain, wordlist, threads):
     banner("Python Bruteforce")
-    q=queue.Queue()
-    out=[]
-    with open(wordlist,"r") as f:
-        for w in f: q.put(w.strip())
-    th=[]
+    q = queue.Queue()
+    out = []
+
+    with open(wordlist, "r") as f:
+        for w in f:
+            q.put(w.strip())
+
+    th = []
     for _ in range(threads):
-        t=threading.Thread(target=brute_thread,args=(q,domain,out))
+        t = threading.Thread(target=brute_thread, args=(q, domain, out))
         t.start()
         th.append(t)
+
     q.join()
-    for _ in th: q.put(None)
-    for t in th: t.join()
+
+    for _ in th:
+        q.put(None)
+    for t in th:
+        t.join()
+
     return out
 
 
@@ -209,30 +279,30 @@ def python_bruteforce(domain, wordlist, threads):
 def main():
     parser = argparse.ArgumentParser(description="Advanced Subdomain Enumeration Tool")
 
-    parser.add_argument("-d","--domain",required=True,help="Target Domain")
-    parser.add_argument("-o","--output",default="subdomains.txt",help="Output File")
-    parser.add_argument("-w","--wordlist",default="/usr/share/wordlists/dirb/common.txt",
+    parser.add_argument("-d", "--domain", required=True, help="Target Domain")
+    parser.add_argument("-o", "--output", default="subdomains.txt", help="Output File")
+    parser.add_argument("-w", "--wordlist", default="/usr/share/wordlists/dirb/common.txt",
                         help="Wordlist for brute force")
-    parser.add_argument("-t","--threads",type=int,default=20,help="Bruteforce Threads")
+    parser.add_argument("-t", "--threads", type=int, default=20, help="Bruteforce Threads")
 
-    parser.add_argument("--no-passive",action="store_true",help="Disable passive tools")
-    parser.add_argument("--no-brute",action="store_true",help="Disable brute tools")
-    parser.add_argument("--no-api",action="store_true",help="Disable API tools")
+    parser.add_argument("--no-passive", action="store_true", help="Disable passive tools")
+    parser.add_argument("--no-brute", action="store_true", help="Disable brute tools")
+    parser.add_argument("--no-api", action="store_true", help="Disable API tools")
 
-    parser.add_argument("--install",choices=["auto","ask","warn"],default="warn",
-                        help="Dependency install mode: auto / ask / warn")
+    parser.add_argument("--install", choices=["auto", "ask", "warn"], default="warn",
+                        help="Dependency install mode")
 
-    args=parser.parse_args()
+    args = parser.parse_args()
 
     # ---- Dependency Check ----
     dependency_manager(args.install)
 
-    domain=args.domain
-    allsubs=set()
+    domain = args.domain
+    allsubs = set()
 
-    passive=[subfinder,assetfinder,amass,findomain,sublist3r,crtsh,wayback,gau]
-    api=[certspotter,virustotal]
-    brute=[dnsrecon,dnsmap,knockpy]
+    passive = [subfinder, assetfinder, amass, findomain, sublist3r, crtsh, wayback, gau]
+    api = [certspotter, virustotal]
+    brute = [dnsrecon, dnsmap, knockpy]
 
     if not args.no_passive:
         for tool in passive:
@@ -245,16 +315,17 @@ def main():
     if not args.no_brute:
         for tool in brute:
             allsubs.update(tool(domain))
-        allsubs.update(python_bruteforce(domain,args.wordlist,args.threads))
+        allsubs.update(python_bruteforce(domain, args.wordlist, args.threads))
 
     # ---- Save Output ----
     allsubs = sorted(set(allsubs))
-    with open(args.output,"w") as f:
-        for s in allsubs: f.write(s+"\n")
+    with open(args.output, "w") as f:
+        for s in allsubs:
+            f.write(s + "\n")
 
     print(f"\n[+] Total Unique: {len(allsubs)}")
     print(f"[+] Saved to: {args.output}\n")
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
