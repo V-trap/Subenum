@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# --- CRLF Auto-Fix for /usr/local/bin version ---------------------------------
+import os, sys
+
+def fix_line_endings_on_install():
+    script_path = os.path.abspath(sys.argv[0])
+    with open(script_path, "rb") as f:
+        data = f.read()
+    if b"\r\n" in data:
+        print("[+] Fixing CRLF → LF in installed script...")
+        cleaned = data.replace(b"\r\n", b"\n")
+        with open(script_path, "wb") as f:
+            f.write(cleaned)
+        print("[+] Fixed. Re-run the command.")
+        sys.exit(0)
+
+fix_line_endings_on_install()
+# -------------------------------------------------------------------------------
+
 """
 Subenum - Combined Lite/Full Subdomain Enumeration Framework
 One script with two modes:
@@ -471,3 +489,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
