@@ -99,21 +99,26 @@ smbclient (for SMB enumeration)
 python3 (if part of your script needs it)
 
 Install dependencies (Debian/Kali):
-
+```
 sudo apt update && sudo apt install nmap gobuster smbclient curl -y
-
+```
 ▶️ Usage
 Run basic enumeration:
+```
 ./enum.sh <target-ip>
-
+```
 Run full aggressive enumeration:
+```
 ./enum.sh <target-ip> --full
-
+```
 Save results in a custom folder:
+```
 ./enum.sh <target-ip> -o results/
-
+```
 Example:
+```
 ./enum.sh 10.10.11.125 --full -o htb_box
+```
 
 💡 Output Examples
 
@@ -178,3 +183,4 @@ A menu-driven UI version
 📜 License
 
 MIT License — free to use, modify, and distribute.
+
